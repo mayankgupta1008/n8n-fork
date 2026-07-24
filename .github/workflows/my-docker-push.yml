@@ -1,0 +1,41 @@
+# ponytail: minimal fork-only image build → Docker Hub. Single-arch amd64.
+# Add linux/arm64 to `platforms` (and QEMU setup) only if you actually need it.
+name: 'My Docker: Build and Push'
+
+on:
+  push:
+    branches: [master] # change to your working branch if different
+  workflow_dispatch: {} # lets you trigger it manually from the Actions tab
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/n8n-unlocked
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Reuses n8n's own action: pnpm install + build:n8n → produces ./compiled
+      - name: Setup and build
+        uses: ./.github/actions/setup-nodejs
+        with:
+          build-command: pnpm build:n8n
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./docker/images/n8n/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}

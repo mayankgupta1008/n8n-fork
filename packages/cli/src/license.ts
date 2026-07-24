@@ -252,6 +252,7 @@ export class License implements LicenseProvider {
 	}
 
 	isLicensed(feature: BooleanLicenseFeature) {
+		if (process.env.N8N_DEV_UNLOCK_ALL === 'true') return true;
 		return this.manager?.hasFeatureEnabled(feature) ?? false;
 	}
 
@@ -383,6 +384,12 @@ export class License implements LicenseProvider {
 	}
 
 	getValue<T extends keyof FeatureReturnType>(feature: T): FeatureReturnType[T] {
+		if (
+			process.env.N8N_DEV_UNLOCK_ALL === 'true' &&
+			(Object.values(LICENSE_QUOTAS) as string[]).includes(feature)
+		) {
+			return UNLIMITED_LICENSE_QUOTA as FeatureReturnType[T];
+		}
 		return this.manager?.getFeatureValue(feature) as FeatureReturnType[T];
 	}
 
