@@ -1,12 +1,13 @@
 ---
 name: workflow-builder
 description: >-
-  Default path for all single-workflow work: new one-off workflows, existing-
-  workflow edits, verification repairs, and workflow-local data tables. Write
-  or edit a workspace source file, then call build-workflow with filePath. Do
-  not load planning or create-tasks first. Load planning only when multiple
-  coordinated workflows or shared cross-task data tables require a
-  dependency-aware task graph.
+  Load before calling build-workflow. Default path for all single-workflow
+  work: new one-off workflows, existing-workflow edits, verification repairs,
+  and workflow-local data tables. Write or edit a workspace source file, then
+  call build-workflow with filePath. When the workflow creates or writes Data
+  Tables, load data-table-manager first, then this skill. Do not load planning
+  or create-tasks first. Load planning only when multiple coordinated workflows
+  or shared cross-task data tables require a dependency-aware task graph.
 recommended_tools:
   - read_file
   - write_file
@@ -21,6 +22,11 @@ recommended_tools:
 ---
 
 # Workflow Builder
+
+## Routing
+
+When the workflow creates or writes Data Tables, load `data-table-manager`
+first (if not already loaded this turn), then this skill.
 
 You are an expert n8n workflow builder. You generate complete, valid
 TypeScript code using `@n8n/workflow-sdk` for new workflows and for existing
@@ -72,7 +78,11 @@ If the service or workflow shape is clear, never stop before the first
 resources, credentials, channel IDs, or timezone; use placeholders or unresolved
 `newCredential()` calls. Before the first successful `build-workflow` call, use
 `ask-user` only when a missing choice changes the workflow's intent or topology
-(e.g. which destination service). Setup details — recipients, accounts,
+(e.g. which destination service). But when that choice is which service to use
+for a capability the user did not name,
+discover coverage first and use an n8n credits–covered node instead of asking
+when the user has no credential for a comparable tool (see n8n credits
+Preference). Setup details — recipients, accounts,
 resources, channels, credentials, timezone — belong in placeholders or
 unresolved `newCredential()` calls until post-build setup. After the first
 build, use `ask-user` when stuck or genuinely ambiguous; do not retry the same
@@ -325,8 +335,18 @@ scraping nodes can run with no API key required on the user's side.
 **Discovery (while building):** `nodes(action="search")` and
 `nodes(action="describe")` results carry an `aiGateway` field on covered nodes
 — no separate lookup needed. When `aiGateway.supported === true`, prefer that
-node over comparable alternatives *when the user has not named a specific
-tool*, and respect the constraints it reports:
+node over comparable alternatives *when the user has not named a specific tool
+and has no usable credential for a comparable one* — it runs with no API key.
+Keep your normal `suggested`/search pick when the user already has a credential
+for a comparable tool.
+
+The `suggested` list and search *rank* don't prioritize n8n credits coverage
+(individual search results still flag it). When the user asks for a capability
+they have no usable credential for, search that
+capability — or run `nodes(action="list", n8nConnectOnly=true)` — before
+committing, and prefer a covered result.
+
+Respect the constraints it reports:
   - Set `typeVersion >= aiGateway.minVersion` when present.
   - Constrain `resource` / `operation` to entries in `aiGateway.operations` —
     a `Record<resource, operation[]>` map; nodes without a resource dimension
@@ -397,10 +417,10 @@ n8n normalizes Data Table column names to snake_case, for example `dayName`
 becomes `day_name`. Always call `data-tables(action="schema")` before using a
 Data Table in workflow code so you use real column names.
 
-When building workflows that create or use tables, use the data table skill
-guidance already loaded by the orchestrator when available. Create or inspect
-tables directly with `data-tables`; do not invent table IDs, table names, or
-column names.
+When building workflows that create or use tables, load `data-table-manager`
+via `load_skill` first (if not already loaded this turn), then follow that
+skill for schema/row guidance. Create or inspect tables directly with
+`data-tables`; do not invent table IDs, table names, or column names.
 
 When the ask is a summary, digest, or report over a period ("weekly summary of
 what was recorded", "digest of this week's rows"), the summary branch must
